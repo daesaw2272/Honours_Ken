@@ -3,9 +3,6 @@ import re
 import pandas as pd
 
 
-# ============================================================
-# FILES
-# ============================================================
 
 FILES = [
     ("scopus_systematic_review_main.csv", "Scopus"),
@@ -19,14 +16,9 @@ FILES = [
 ]
 
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
+
 
 def safe_column(df, column_name):
-    """
-    Return a column if it exists, otherwise return blanks.
-    """
 
     if column_name in df.columns:
         return df[column_name].fillna("").astype(str)
@@ -38,14 +30,6 @@ def safe_column(df, column_name):
 
 
 def normalise_doi(doi):
-    """
-    Convert DOI into a consistent format.
-
-    Examples:
-    https://doi.org/10.1234/abc -> 10.1234/abc
-    DOI:10.1234/abc            -> 10.1234/abc
-    """
-
     if pd.isna(doi):
         return ""
 
@@ -76,9 +60,6 @@ def normalise_doi(doi):
 
 
 def normalise_title(title):
-    """
-    Normalise titles for duplicate detection.
-    """
 
     if pd.isna(title):
         return ""
@@ -92,7 +73,6 @@ def normalise_title(title):
         title
     )
 
-    # Collapse repeated whitespace
     title = re.sub(
         r"\s+",
         " ",
@@ -103,9 +83,6 @@ def normalise_title(title):
 
 
 def combine_unique(values):
-    """
-    Combine unique non-empty values from duplicate records.
-    """
 
     cleaned = []
 
@@ -125,9 +102,6 @@ def combine_unique(values):
     return "; ".join(cleaned)
 
 
-# ============================================================
-# STANDARDISE EACH DATABASE
-# ============================================================
 
 def standardise_scopus(df, filename):
 
@@ -352,11 +326,6 @@ def standardise_pubmed(df, filename):
 
     return output
 
-
-# ============================================================
-# LOAD FILES
-# ============================================================
-
 all_dataframes = []
 
 print("\nSYSTEMATIC REVIEW DATABASE MERGE\n")
@@ -414,10 +383,6 @@ for filename, database in FILES:
     )
 
 
-# ============================================================
-# COMBINE
-# ============================================================
-
 if not all_dataframes:
 
     raise SystemExit(
@@ -436,11 +401,6 @@ print(
     f"{len(combined)}"
 )
 
-
-# ============================================================
-# SAVE RAW COMBINED DATA
-# ============================================================
-
 combined.to_csv(
     "systematic_review_combined_raw.csv",
     index=False,
@@ -453,10 +413,6 @@ print(
 )
 
 
-# ============================================================
-# NORMALISE DOI AND TITLE
-# ============================================================
-
 combined["doi_normalised"] = (
     combined["doi"]
     .apply(normalise_doi)
@@ -467,14 +423,8 @@ combined["title_normalised"] = (
     .apply(normalise_title)
 )
 
-
-# ============================================================
-# CREATE DUPLICATE KEY
-# ============================================================
-
 def create_duplicate_key(row):
 
-    # DOI is strongest identifier
     if row["doi_normalised"]:
 
         return (
@@ -482,7 +432,6 @@ def create_duplicate_key(row):
             + row["doi_normalised"]
         )
 
-    # Fall back to normalised title
     if row["title_normalised"]:
 
         return (
@@ -490,7 +439,6 @@ def create_duplicate_key(row):
             + row["title_normalised"]
         )
 
-    # No DOI/title -> preserve separately
     return (
         "UNMATCHED:"
         + str(row.name)
@@ -505,10 +453,6 @@ combined["duplicate_key"] = (
 )
 
 
-# ============================================================
-# COLLAPSE DUPLICATES
-# ============================================================
-
 deduplicated_rows = []
 
 
@@ -517,13 +461,8 @@ for duplicate_key, group in combined.groupby(
     sort=False
 ):
 
-    # Choose the first record as the base
     row = group.iloc[0].copy()
 
-
-    # --------------------------------------------------------
-    # Preserve provenance
-    # --------------------------------------------------------
 
     row["database"] = combine_unique(
         group["database"]
@@ -538,10 +477,6 @@ for duplicate_key, group in combined.groupby(
     )
 
 
-    # --------------------------------------------------------
-    # Preserve identifiers
-    # --------------------------------------------------------
-
     row["pmid"] = combine_unique(
         group["pmid"]
     )
@@ -550,10 +485,6 @@ for duplicate_key, group in combined.groupby(
         group["wos_uid"]
     )
 
-
-    # --------------------------------------------------------
-    # Choose best available metadata
-    # --------------------------------------------------------
 
     for column in [
         "title",
@@ -577,7 +508,6 @@ for duplicate_key, group in combined.groupby(
 
         if values:
 
-            # For abstract choose longest version
             if column == "abstract":
 
                 row[column] = max(
@@ -604,10 +534,6 @@ deduplicated = pd.DataFrame(
 )
 
 
-# ============================================================
-# CLEAN OUTPUT
-# ============================================================
-
 deduplicated = deduplicated.reset_index(
     drop=True
 )
@@ -627,9 +553,6 @@ deduplicated.insert(
 )
 
 
-# ============================================================
-# SCREENING COLUMNS
-# ============================================================
 
 deduplicated[
     "title_abstract_decision"
@@ -652,9 +575,6 @@ deduplicated[
 ] = ""
 
 
-# ============================================================
-# SAVE DEDUPLICATED CSV
-# ============================================================
 
 deduplicated.to_csv(
     "systematic_review_deduplicated.csv",
@@ -662,10 +582,6 @@ deduplicated.to_csv(
     encoding="utf-8-sig"
 )
 
-
-# ============================================================
-# SAVE EXCEL SCREENING WORKBOOK
-# ============================================================
 
 try:
 
@@ -680,10 +596,6 @@ except ImportError:
 
     excel_created = False
 
-
-# ============================================================
-# SUMMARY
-# ============================================================
 
 raw_count = len(combined)
 
